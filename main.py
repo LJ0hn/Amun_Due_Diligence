@@ -50,7 +50,10 @@ def run_main(project_name, windFarmFileName, scenarioName, user):
     log.info('sourcing PMF data')
     df_price, df_plantOpp, df_loadFactor = Inputs.get_and_save_scenario_data(scenarioName, user,
                                                                              "GBR", projectHome / 'PMF')
-    # Inputs.get_and_save_scenario_tech_data(scenarioName, user, "GBR", projectHome / 'PMF')
+    # df_price.dateTime = df_price.dateTime - pd.to_timedelta(1,'H')
+    # df_loadFactor.dateTime = df_loadFactor.dateTime - pd.to_timedelta(1,'H')
+
+    Inputs.get_and_save_scenario_tech_data(scenarioName, user, "GBR", projectHome / 'PMF')
 
     # df_price = df_price.set_index('dateTime').drop(columns=['date'])
     df_price = df_price.set_index('dateTime')
@@ -75,29 +78,31 @@ def run_main(project_name, windFarmFileName, scenarioName, user):
     # Extend profiles to 2050
     log.info('Extending Amun profile to 2050')
     # prelim_Amun_LF = Inputs.extend_yearly_profile_to_50_years(preliminary_valuation.set_index('dateTime').drop(columns=['windSpeed']), df_price, outPath)
+    # df_price =Inputs.extend_prices_to_2060(df_price)
     Amun_LF = Inputs.extend_yearly_profile_to_50_years(valuation.set_index('dateTime').drop(columns=['windSpeed']),
                                                        df_price, outPath / 'prelim')
+
 
     # calculate yearly R2 between profiles
     log.info('Calculating and saving R2 value')
     R2 = Calculations.yearly_r2(Amun_LF, df_LF_pmfwof, outPath)
     # R2_prelim = Calculations.yearly_r2(Amun_LF, df_LF_pmfwof, outPath / 'prelim')
 
-    losses = pd.read_excel(
-        fr'C:\Users\JohnLong\Aurora Energy Research\Aurora Team Site - SaaS Team\Amun\Analytics\Adhoc projects\202107 GIP Hornsea One\data\210903 - Horizon - Yield - Aurora.XLSX').iloc[28]
-    Amun_LF = pd.merge(Amun_LF.reset_index(), losses, left_on=Amun_LF.index.year, right_on=losses.index,
-                       how='left').set_index('dateTime')
-
-    Amun_LF.fillna(0, inplace=True)
-    Amun_LF['loadFactor_loss'] = Amun_LF.loadFactor * (Amun_LF[28])
-    Amun_LF.drop(columns=[28, 'key_0'], inplace=True)
+    # losses = pd.read_excel(
+    #     fr'C:\Users\JohnLong\Aurora Energy Research\Aurora Team Site - SaaS Team\Amun\Analytics\Adhoc projects\202107 GIP Hornsea One\data\210903 - Horizon - Yield - Aurora.XLSX').iloc[28]
+    # Amun_LF = pd.merge(Amun_LF.reset_index(), losses, left_on=Amun_LF.index.year, right_on=losses.index,
+    #                    how='left').set_index('dateTime')
+    #
+    # Amun_LF.fillna(0, inplace=True)
+    # Amun_LF['loadFactor_loss'] = Amun_LF.loadFactor * (Amun_LF[28])
+    # Amun_LF.drop(columns=[28, 'key_0'], inplace=True)
 
     log.info('Merging LF profiles and saving')
     LF_all = Calculations.merge_and_save_load_factors_no_prelim(Amun_LF, df_loadFactor, outPath)  #
 
     log.info('calculating Capture prices')
     df_price = df_price.rename(columns={'WholesalePrice': 'wholesalePrice'})
-    subsidisedCP = Calculations.capture_price(df_LF_pmfwon.CanLoadFactor, df_price, -168.06, historical=True)
+    subsidisedCP = Calculations.capture_price(df_LF_pmfwon.CanLoadFactor, df_price, -47.2, historical=True)
     curtailedCP = Calculations.capture_price(df_LF_pmfwon.CanLoadFactor, df_price, 0, historical=True)
 
     log.info('saving Capture prices')

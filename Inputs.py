@@ -51,6 +51,11 @@ def get_and_save_scenario_tech_data(scenarioName: str, user: str, region: str, p
     # save to csv
     BaseLoadPrice = path / 'techProd.csv'
     LoadFactorCanLoadFactorPath = path / 'LoadFactor_CanLoadFactor_alltech.csv'
+    check = BaseLoadPrice.exists() & LoadFactorCanLoadFactorPath.exists()
+
+    if check:
+        log.info(tech level load factor and p)
+        return
 
     print("retrieve data for LoadFactor, capacity and CanProductionInTWh")
     df_plantOpp = aer.dwh(
@@ -59,7 +64,7 @@ def get_and_save_scenario_tech_data(scenarioName: str, user: str, region: str, p
         scenario=scenarioName,
         region=region,
         technology=...,
-        year=[2021, 2050],
+        year=[2021, 2025, 2050],
         plant=...,
         technologyfullname=...,
         include_dims=['year', 'technologyfullname', 'technology'],
@@ -84,7 +89,7 @@ def get_and_save_scenario_tech_data(scenarioName: str, user: str, region: str, p
         scenario=scenarioName,
         region=region,
         technology=...,
-        year=[2021, 2050],
+        year=[2021, 2025, 2050],
         plant=...,
         date=...,
         technologyfullname=...,
@@ -314,6 +319,36 @@ def extend_yearly_profile_to_50_years(loadFactor, priceTimeSeries, path):
     df.to_csv(path / 'Amun_Extended_profile.csv')
     # df.dropna(inplace=True)
     return df
+
+
+def extend_prices_to_2060(prices):
+    """
+    Extend prices form 2050 to 2060 based on average of last 5 years (2045 - 2050). This is only for project Ipsolin.
+
+    :param prices: df of prices
+    :return:
+    """
+    prices = prices.reset_index()
+
+    prices_post_2050 = prices[prices.dateTime.dt.year >= 2045]
+    prices_post_2050['deltaFromYearStart'] = prices_post_2050.reset_index().groupby(
+        prices_post_2050.reset_index().dateTime.dt.year).apply(
+        lambda x: x.dateTime - pd.to_datetime(x.dateTime.iloc[0].year, format='%Y', utc=True)).values
+    prices_post_2050 = prices_post_2050.groupby('deltaFromYearStart').mean().reset_index()
+
+    price_to_append = pd.DataFrame({
+        'dateTime':     pd.date_range(start='1/1/2051', end='31/12/2060').tz_localize('utc'),
+    })
+
+    price_to_append['deltaFromYearStart'] = price_to_append.reset_index().groupby(
+        price_to_append.reset_index().dateTime.dt.year).apply(
+        lambda x: x.dateTime - pd.to_datetime(x.dateTime.iloc[0].year, format='%Y', utc=True)).values
+
+    price_to_append = price_to_append.merge(prices_post_2050, on='deltaFromYearStart')
+    prices = pd.concat([prices, price_to_append[['dateTime', 'WholesalePrice']]]).set_index('dateTime')
+    return prices
+
+
 
 
 if __name__ == '__main__':
