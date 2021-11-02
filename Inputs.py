@@ -54,7 +54,6 @@ def get_and_save_scenario_tech_data(scenarioName: str, user: str, region: str, p
     check = BaseLoadPrice.exists() & LoadFactorCanLoadFactorPath.exists()
 
     if check:
-        log.info(tech level load factor and p)
         return
 
     print("retrieve data for LoadFactor, capacity and CanProductionInTWh")

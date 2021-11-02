@@ -40,6 +40,14 @@ def setup_file_and_console_loggers(fileName, logger):
 
 
 def run_main(project_name, windFarmFileName, scenarioName, user):
+    """
+    sources and preprocesses data fro tableau dashboard.
+    :param project_name:
+    :param windFarmFileName:
+    :param scenarioName:
+    :param user:
+    :return:
+    """
     pathHome = pathlib.Path.home()
     projectHome = pathHome / 'Aurora Energy Research' / 'Aurora Team Site - SaaS Team' / 'Amun' / 'Analytics' \
                   / 'Adhoc projects' / project_name / 'data' / 'Raw data'
@@ -82,7 +90,6 @@ def run_main(project_name, windFarmFileName, scenarioName, user):
     Amun_LF = Inputs.extend_yearly_profile_to_50_years(valuation.set_index('dateTime').drop(columns=['windSpeed']),
                                                        df_price, outPath / 'prelim')
 
-
     # calculate yearly R2 between profiles
     log.info('Calculating and saving R2 value')
     R2 = Calculations.yearly_r2(Amun_LF, df_LF_pmfwof, outPath)
@@ -98,7 +105,7 @@ def run_main(project_name, windFarmFileName, scenarioName, user):
     # Amun_LF.drop(columns=[28, 'key_0'], inplace=True)
 
     log.info('Merging LF profiles and saving')
-    LF_all = Calculations.merge_and_save_load_factors_no_prelim(Amun_LF, df_loadFactor, outPath)  #
+    Calculations.merge_and_save_load_factors_no_prelim(Amun_LF, df_loadFactor, outPath)  #
 
     log.info('calculating Capture prices')
     df_price = df_price.rename(columns={'WholesalePrice': 'wholesalePrice'})
@@ -118,7 +125,7 @@ if __name__ == '__main__':
     logging.getLogger("Amun_Due_Diligence").setLevel(logging.DEBUG)
 
     project = '202110 GIG Project Ipsolin'
-    windFarmFileName = 'Project Ipsolin - Phase 1 - Central'
-    scenarioName = 'GB Oct 2021 PMF - Central PUBLISHED -FYR'
-    user = 'gbcurrency2020_production'
-    run_main(project, windFarmFileName, scenarioName, user)
+    windFarmFileName_ = 'Project Ipsolin - Phase 1 - Central'
+    scenarioName_ = 'GB Oct 2021 PMF - Central PUBLISHED -FYR'
+    user_ = 'gbcurrency2020_production'
+    run_main(project, windFarmFileName_, scenarioName_, user_)

@@ -9,6 +9,7 @@ functions:
 3. yearly loadFactor and production
 """
 
+
 def rSquared(yTrue, yPred):
     """
     R squared, this is the squared Pearson correlation coefficient of a linear regression model using the simulated
@@ -38,6 +39,7 @@ def rSquared(yTrue, yPred):
 def yearly_r2(AmunProfile, PMFProfile, path):
     """
 
+    :param path:
     :param AmunProfile:
     :param PMFProfile:
     :return:
@@ -51,10 +53,16 @@ def yearly_r2(AmunProfile, PMFProfile, path):
     df_r2.to_csv(path / 'yearly_r2_values.csv')
     return df_r2
 
-def curtail(df, threshold):
-    df.loc[(df.WholesalePrice < threshold) & (df.index.year > 2035), 'loadFactor'] = 0
-    return df
 
+def curtail(df, threshold):
+    """
+    cruati
+    :param df:
+    :param threshold:
+    :return:
+    """
+    df.loc[(df.WholesalePrice < threshold) & (df.index.year > 2040), 'loadFactor'] = 0
+    return df
 
 
 def merge_and_save_load_factors(AmunProfile, prelimAmun, PMFProfile, path):
@@ -62,8 +70,10 @@ def merge_and_save_load_factors(AmunProfile, prelimAmun, PMFProfile, path):
 
     AmunProfile_curtailed = curtail(AmunProfile.copy(), 0)
     prelimAmun_curtailed = curtail(prelimAmun.copy(), 0)
-    curtailed = pd.merge(AmunProfile_curtailed, prelimAmun_curtailed, on = ['dateTime', 'WholesalePrice'], suffixes=('_DNV', '_Amun'))
-    curtailed = curtailed.rename(columns={'loadFactor_DNV':'netLoadFactor_DNV', 'loadFactor_Amun':'netLoadFactor_Amun'})
+    curtailed = pd.merge(AmunProfile_curtailed, prelimAmun_curtailed, on=['dateTime', 'WholesalePrice'],
+                         suffixes=('_DNV', '_Amun'))
+    curtailed = curtailed.rename(
+        columns={'loadFactor_DNV': 'netLoadFactor_DNV', 'loadFactor_Amun': 'netLoadFactor_Amun'})
 
     df = pd.merge(AmunProfile, PMFProfile, on='dateTime')
     df = pd.merge(df, prelimAmun, on=['dateTime', 'WholesalePrice'], suffixes=('_DNV', '_Amun'))
@@ -91,7 +101,7 @@ def merge_and_save_load_factors(AmunProfile, prelimAmun, PMFProfile, path):
     prelimAmun_curtailed['type'] = 'NetLoadFactor'
 
     PMFProfile = pd.melt(PMFProfile, id_vars=['dateTime', 'technology'], var_name='type', value_name='loadFactor',
-            value_vars=['NetLoadFactor', 'CanLoadFactor'])
+                         value_vars=['NetLoadFactor', 'CanLoadFactor'])
     PMFProfile['source'] = 'PMF'
     df_long = AmunProfile.append(PMFProfile)
     df_long = df_long.append(prelimAmun)
@@ -100,6 +110,7 @@ def merge_and_save_load_factors(AmunProfile, prelimAmun, PMFProfile, path):
     # df = df.reset_index()
     # df = pd.melt(df, id_vars=['dateTime', 'WholesalePrice'], var_name='type', value_name='Load factor', value_vars=['Amun', 'PMF'])
     df_long.to_csv(path / 'LF_Amun_PMF_long_format.csv')
+
 
 def merge_and_save_load_factors_no_prelim(AmunProfile, PMFProfile, path):
     PMFProfile = PMFProfile[['technology', 'dateTime', 'NetLoadFactor', 'CanLoadFactor']]
@@ -112,12 +123,13 @@ def merge_and_save_load_factors_no_prelim(AmunProfile, PMFProfile, path):
     AmunProfile['type'] = 'CanLoadFactor'
 
     PMFProfile = pd.melt(PMFProfile, id_vars=['dateTime', 'technology'], var_name='type', value_name='loadFactor',
-            value_vars=['NetLoadFactor', 'CanLoadFactor'])
+                         value_vars=['NetLoadFactor', 'CanLoadFactor'])
     PMFProfile['source'] = 'PMF'
     df_long = AmunProfile.append(PMFProfile)
     # df = df.reset_index()
     # df = pd.melt(df, id_vars=['dateTime', 'WholesalePrice'], var_name='type', value_name='Load factor', value_vars=['Amun', 'PMF'])
     df_long.to_csv(path / 'LF_Amun_PMF_long_format.csv')
+
 
 def capture_price(loadFactor, priceTimeSeries, threshold, capturePriceMethod=1, historical=True):
     """
@@ -254,5 +266,3 @@ def capture_price(loadFactor, priceTimeSeries, threshold, capturePriceMethod=1, 
     else:
         raise ValueError(f'capture price method not recognised: {capturePriceMethod}')
     return df_cp
-
-
