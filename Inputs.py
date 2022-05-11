@@ -45,7 +45,10 @@ def speed_up_weighted(df, index, columns, values, weights):
 
 def get_and_save_scenario_tech_data(scenarioName: str, user: str, region: str, path):
     # create folder structure
-    path = path / scenarioName
+    if scenarioName == '2022-03 Razorbill - Step 5.1: Euromerge + Heat load (demand linear) v3 (PV exo)-FYR':
+        path = path / 'central 2060 extention'
+    else:
+        path = path / scenarioName
     path.mkdir(parents=True, exist_ok=True)
 
     # save to csv
@@ -138,7 +141,10 @@ def get_and_save_scenario_data(scenarioName: str, user: str, region: str, path):
     :return:
     """
     # create folder structure
-    path = path / scenarioName
+    if scenarioName == '2022-03 Razorbill - Step 5.1: Euromerge + Heat load (demand linear) v3 (PV exo)-FYR':
+        path = path / 'central 2060 extention'
+    else:
+        path = path / scenarioName
     path.mkdir(parents=True, exist_ok=True)
 
     # save to csv
@@ -232,23 +238,10 @@ def get_and_save_scenario_data(scenarioName: str, user: str, region: str, path):
 
     df_loadFactor['CanLoadFactor'] = df_loadFactor.CanProductionInMW / (df_loadFactor.capacity * 1000)
     df_loadFactor['NetLoadFactor'] = df_loadFactor.NetProductionInMW / (df_loadFactor.capacity * 1000)
-    # df_loadFactor = df_loadFactor.groupby(['technologyfullname', 'year', 'date']).apply(weighted, cols=['CanLoadFactor'],
-    #                                                                                     w='capacity').reset_index()
     log.info(f'saving data to {LoadFactorCanLoadFactorPath}')
     df_loadFactor.rename(columns={'date': 'dateTime'}, inplace=True)
 
     df_loadFactor.to_csv(LoadFactorCanLoadFactorPath, index=False)
-    # print('starting fleet aggregation')
-    # # df_loadFactor_fleet = df_loadFactor.groupby(['year', 'date']).apply(weighted, cols=['CanLoadFactor'],
-    # #                                                                     w='capacity').reset_index()
-    # print('starting tech aggregation')
-    # df_loadFactor_fleet = speed_up_weighted(df_loadFactor, 'date', 'technologyfullname', 'CanLoadFactor', 'capacity')
-    # df_loadFactor_fleet['technologyfullname'] = 'fleet'
-    # df_loadFactor_fleet['technology'] = 'fleet'
-    # df_loadFactor = df_loadFactor.append(df_loadFactor_fleet)
-    #
-    # log.info(f'saving data to {LoadFactorCanLoadFactorPath}')
-    # df_loadFactor.to_csv(LoadFactorCanLoadFactorPath, index=False)
 
     log.info(f'{scenarioName} get_and_save_scenario_data compelte')
     return df_price, df_plantOpp, df_loadFactor
@@ -274,6 +267,7 @@ def save_to_json(path: pathlib.Path, fileName, object):
 def get_amun_profiles(valuationName: str, path):
     profilePath = path / "valuations" / f"{valuationName}.json"
     if profilePath.exists() is False:
+        log.info(f"valuation {profilePath} doesn't exist, trying to get from Amun")
         session = AmunSession()
         valuations = session.get_valuations()
         valuationId = get_valuation_by_name(valuations, valuationName)['id']
@@ -287,6 +281,7 @@ def get_amun_profiles(valuationName: str, path):
 
 def extend_yearly_profile_to_50_years(loadFactor, priceTimeSeries, path):
     loadFactor.name = 'canProduceLoadFactor'
+    loadFactor = loadFactor[loadFactor.index.year == loadFactor.index.year[10]]
     n = (loadFactor.index[-1] - loadFactor.index[0]).round('D').days
 
     # if 365 days of data extend to 366 by repeating last day (to deal with leap years)
@@ -353,9 +348,9 @@ def extend_prices_to_2060(prices):
 if __name__ == '__main__':
     pathHome = pathlib.Path.home()
     projectHome = pathHome / 'Aurora Energy Research' / 'Aurora Team Site - SaaS Team' / 'Amun' / 'Analytics' \
-                  / 'Adhoc projects' / '202107 GIP Hornsea One' / 'data' / 'Raw data' / 'PMF'
+                  / 'Adhoc projects' / '202205 Project Razorbill' / 'data' / 'Raw data' / 'PMF'
 
-    scenarios = ["GB Jan21 - Central-FYR"]
+    scenarios = ["2022-03 Razorbill - Step 5.1: Euromerge + Heat load (demand linear) v3 (PV exo)-FYR", "PMF DEU 22 APR CENTRAL FINAL-FYR"]
 
     for scenario in scenarios:
         get_and_save_scenario_data(scenario, "gbcurrency2020_production", "GBR", projectHome)

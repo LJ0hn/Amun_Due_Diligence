@@ -39,7 +39,7 @@ def setup_file_and_console_loggers(fileName, logger):
     logging.getLogger("aurora.amun").setLevel(logging.DEBUG)
 
 
-def run_main(project_name, windFarmFileName, scenarioName, user):
+def run_main(project_name, windFarmFileName, scenarioName, region, user):
     """
     sources and preprocesses data fro tableau dashboard.
     :param project_name:
@@ -48,27 +48,31 @@ def run_main(project_name, windFarmFileName, scenarioName, user):
     :param user:
     :return:
     """
+    # set up file paths
     pathHome = pathlib.Path.home()
     projectHome = pathHome / 'Aurora Energy Research' / 'Aurora Team Site - SaaS Team' / 'Amun' / 'Analytics' \
                   / 'Adhoc projects' / project_name / 'data' / 'Raw data'
     outPath = pathHome / 'Aurora Energy Research' / 'Aurora Team Site - SaaS Team' / 'Amun' / 'Analytics' \
               / 'Adhoc projects' / project_name / 'outputs'
+    projectHome.mkdir(parents=True, exist_ok=True)
+    outPath.mkdir(parents=True, exist_ok=True)
 
-    # source inputs
+    # source inputs from dwh scenario data
     log.info('sourcing PMF data')
     df_price, df_plantOpp, df_loadFactor = Inputs.get_and_save_scenario_data(scenarioName, user,
-                                                                             "GBR", projectHome / 'PMF')
-    # df_price.dateTime = df_price.dateTime - pd.to_timedelta(1,'H')
-    # df_loadFactor.dateTime = df_loadFactor.dateTime - pd.to_timedelta(1,'H')
+                                                                             region, projectHome / 'PMF')
+    Inputs.get_and_save_scenario_tech_data(scenarioName, user, region, projectHome / 'PMF')
 
-    Inputs.get_and_save_scenario_tech_data(scenarioName, user, "GBR", projectHome / 'PMF')
-
-    # df_price = df_price.set_index('dateTime').drop(columns=['date'])
+    # save price data
     df_price = df_price.set_index('dateTime')
     df_price = df_price.resample('H').mean()
-    BaseLoadPrice = projectHome / 'PMF' / scenarioName / 'BaseLoadPrice_H.csv'
+    if scenarioName == '2022-03 Razorbill - Step 5.1: Euromerge + Heat load (demand linear) v3 (PV exo)-FYR':
+        BaseLoadPrice = projectHome / 'PMF' / 'central 2060 extention' / 'BaseLoadPrice_H.csv'
+    else:
+        BaseLoadPrice = projectHome / 'PMF' / scenarioName / 'BaseLoadPrice_H.csv'
     df_price.to_csv(BaseLoadPrice)
 
+    # seperate out PMF data and resample to hourly because its GBR.
     df_LF_pmfwon = df_loadFactor[df_loadFactor['technologyfullname'] == 'Wind Onshore'].set_index('dateTime').drop(
         columns=['year', 'technologyfullname'])
     df_LF_pmfwon = df_LF_pmfwon.resample('H').mean()
@@ -77,41 +81,31 @@ def run_main(project_name, windFarmFileName, scenarioName, user):
     df_LF_pmfwof = df_LF_pmfwof.resample('H').mean()
     df_loadFactor = df_loadFactor.set_index('dateTime').groupby(['technology']).resample('H').mean().reset_index()
 
+    # get Amun data
     log.info('sourcing Amun data')
     valuation = Inputs.get_amun_profiles(windFarmFileName, projectHome)
-    # preliminary_valuation = Inputs.get_amun_profiles('Hornsea One Phase 3 - Pre calibrated Generation - April',
-    #                                                  projectHome)
     log.info('All Inputs Souced')
 
-    # Extend profiles to 2050
+    # Extend profiles to 2050 by repeating the Amun profile every year.
     log.info('Extending Amun profile to 2050')
-    # prelim_Amun_LF = Inputs.extend_yearly_profile_to_50_years(preliminary_valuation.set_index('dateTime').drop(columns=['windSpeed']), df_price, outPath)
-    # df_price =Inputs.extend_prices_to_2060(df_price)
     Amun_LF = Inputs.extend_yearly_profile_to_50_years(valuation.set_index('dateTime').drop(columns=['windSpeed']),
                                                        df_price, outPath / 'prelim')
 
     # calculate yearly R2 between profiles
     log.info('Calculating and saving R2 value')
     R2 = Calculations.yearly_r2(Amun_LF, df_LF_pmfwof, outPath)
-    # R2_prelim = Calculations.yearly_r2(Amun_LF, df_LF_pmfwof, outPath / 'prelim')
 
-    # losses = pd.read_excel(
-    #     fr'C:\Users\JohnLong\Aurora Energy Research\Aurora Team Site - SaaS Team\Amun\Analytics\Adhoc projects\202107 GIP Hornsea One\data\210903 - Horizon - Yield - Aurora.XLSX').iloc[28]
-    # Amun_LF = pd.merge(Amun_LF.reset_index(), losses, left_on=Amun_LF.index.year, right_on=losses.index,
-    #                    how='left').set_index('dateTime')
-    #
-    # Amun_LF.fillna(0, inplace=True)
-    # Amun_LF['loadFactor_loss'] = Amun_LF.loadFactor * (Amun_LF[28])
-    # Amun_LF.drop(columns=[28, 'key_0'], inplace=True)
-
+    # merge and save the Amun load factors and the PMF load factors.
     log.info('Merging LF profiles and saving')
     Calculations.merge_and_save_load_factors_no_prelim(Amun_LF, df_loadFactor, outPath)  #
 
+    # calcualte the capture prices of the curtailed and uncurtailed can load factor.
     log.info('calculating Capture prices')
     df_price = df_price.rename(columns={'WholesalePrice': 'wholesalePrice'})
-    subsidisedCP = Calculations.capture_price(df_LF_pmfwon.CanLoadFactor, df_price, -47.2, historical=True)
+    subsidisedCP = Calculations.capture_price(df_LF_pmfwon.CanLoadFactor, df_price, -10000, historical=True)
     curtailedCP = Calculations.capture_price(df_LF_pmfwon.CanLoadFactor, df_price, 0, historical=True)
 
+    # save capture prices.
     log.info('saving Capture prices')
     subsidisedCP.to_csv(outPath / 'subsidised_PMF_WON_CP.csv')
     curtailedCP.to_csv(outPath / 'curtailed_PMF_WON_CP.csv')
@@ -124,8 +118,10 @@ if __name__ == '__main__':
     logging.getLogger("aurora.amun").setLevel(logging.DEBUG)
     logging.getLogger("Amun_Due_Diligence").setLevel(logging.DEBUG)
 
-    project = '202110 GIG Project Ipsolin'
-    windFarmFileName_ = 'Project Ipsolin - Phase 1 - Central'
-    scenarioName_ = 'GB Oct 2021 PMF - Central PUBLISHED -FYR'
-    user_ = 'gbcurrency2020_production'
-    run_main(project, windFarmFileName_, scenarioName_, user_)
+    project = '202205 Project Razorbill'
+    windFarmFileName_ = 'Project Razorbill - V2 Central - curtialed - 2050'
+    scenarioName_ =  "2022-03 Razorbill - Step 5.1: Euromerge + Heat load (demand linear) v3 (PV exo)-FYR" #,"PMF DEU 22 APR CENTRAL FINAL-FYR" #
+    user_ = 'eucurrency2021_production'
+    region_ = 'DEU'
+
+    run_main(project, windFarmFileName_, scenarioName_, region_, user_)
